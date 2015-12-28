@@ -47,7 +47,6 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 			Image:    m.Container.Config.Image,
 			Hostname: m.Container.Config.Hostname,
 			GravityBuildId: os.Getenv("GRAVITY-BUILD-ID")
- 			
 		}
 		js, err := json.Marshal(msg)
 		if err != nil {
