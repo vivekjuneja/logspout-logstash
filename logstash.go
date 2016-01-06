@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log"
 	"net"
-        "os"
 	"github.com/gliderlabs/logspout/router"
 )
 
@@ -49,7 +48,7 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 			LogId: "UNKNOWN", 
 		}
 		
-		for _, kv := range container.Config.Env {
+		for _, kv := range m.Container.Config.Env {
 			kvp := strings.SplitN(kv, "=", 2)
 			log.Println("Key = ", kvp[0])
 			log.Println("Value = ", kvp[1])
