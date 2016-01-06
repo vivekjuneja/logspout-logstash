@@ -46,8 +46,9 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 			ID:       m.Container.ID,
 			Image:    m.Container.Config.Image,
 			Hostname: m.Container.Config.Hostname,
-			LogId: os.Getenv("ACCEPTLOGID"),
+			LogId: os.Getenv("ACCEPTLOGID"), 
 		}
+	        log.Println("Container ENV: " + m.Container.Config.Env)	
 		js, err := json.Marshal(msg)
 		if err != nil {
 			log.Println("logstash:", err)
