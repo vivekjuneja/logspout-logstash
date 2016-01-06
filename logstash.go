@@ -46,9 +46,20 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 			ID:       m.Container.ID,
 			Image:    m.Container.Config.Image,
 			Hostname: m.Container.Config.Hostname,
-			LogId: os.Getenv("ACCEPTLOGID"), 
+			LogId: "UNKNOWN", 
 		}
-	        log.Println("Container ENV: " + m.Container.Config.Env)	
+		
+		for _, kv := range container.Config.Env {
+			kvp := strings.SplitN(kv, "=", 2)
+			log.Println("Key = ", kvp[0])
+			log.Println("Value = ", kvp[1])
+			if kvp[0] == "LOGID" {
+				log.Println("Setting the LogId to the value to the container")			
+				msg.LogId = kvp[1] 
+			} 
+		}
+
+		
 		js, err := json.Marshal(msg)
 		if err != nil {
 			log.Println("logstash:", err)
