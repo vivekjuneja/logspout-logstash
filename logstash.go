@@ -51,8 +51,8 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 		
 		for _, kv := range m.Container.Config.Env {
 			kvp := strings.SplitN(kv, "=", 2)
-			log.Println("Key = ", kvp[0])
-			log.Println("Value = ", kvp[1])
+			log.Println("[LOGSTASH ADAPTOR]: Key = ", kvp[0])
+			log.Println("[LOGSTASH ADAPTOR]: Value = ", kvp[1])
 			if kvp[0] == "LOGID" {
 				log.Println("Setting the LogId to the value to the container")			
 				msg.LogId = kvp[1] 
