@@ -57,6 +57,10 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 				//log.Println("Setting the LogId to the value to the container")			
 				msg.LogId = kvp[1] 
 			} 
+			else if kvp[0] == "TYPE" {
+                                //log.Println("Setting the LogId to the value to the container")
+                                msg.Type = kvp[1]
+                        }
 		}
 
 		
@@ -81,4 +85,5 @@ type LogstashMessage struct {
 	Image    string `json:"docker.image"`
 	Hostname string `json:"docker.hostname"`
         LogId string `json:"logid"`
+        Type string `json:"type"`
 }
