@@ -80,7 +80,7 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 type LogstashMessage struct {
 	Message  string `json:"message"`
 	Name     string `json:"docker_name"`
-	ID       string `json:"docker-id"`
+	ID       string `json:"docker_id"`
 	Image    string `json:"docker_image"`
 	Hostname string `json:"docker_hostname"`
         LogId string `json:"logid"`
