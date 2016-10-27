@@ -3,10 +3,10 @@ package logstash
 import (
 	"encoding/json"
 	"errors"
+	"github.com/gliderlabs/logspout/router"
 	"log"
 	"net"
- 	"strings"
-	"github.com/gliderlabs/logspout/router"
+	"strings"
 )
 
 func init() {
@@ -46,20 +46,22 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 			ID:       m.Container.ID,
 			Image:    m.Container.Config.Image,
 			Hostname: m.Container.Config.Hostname,
-			LogId: "UNKNOWN", 
-		}
-		
-		for _, kv := range m.Container.Config.Env {
-			kvp := strings.SplitN(kv, "=", 2)
-			
-			if kvp[0] == "LOGID" {
-				msg.LogId = kvp[1] 
-			} else if kvp[0] == "TYPE" {
-                                msg.Type = kvp[1]
-                        }
+			LogId:    "UNKNOWN",
 		}
 
-		
+		for _, kv := range m.Container.Config.Env {
+			kvp := strings.SplitN(kv, "=", 2)
+
+			if kvp[0] == "LOGID" {
+				msg.LogId = kvp[1]
+			} else if kvp[0] == "TYPE" {
+				msg.Type = kvp[1]
+			} else if kvp[0] == "MESOS_TASK_ID" {
+				msg.TaskId = kvp[1]
+			}
+
+		}
+
 		js, err := json.Marshal(msg)
 		if err != nil {
 			log.Println("logstash:", err)
@@ -80,6 +82,7 @@ type LogstashMessage struct {
 	ID       string `json:"docker_id"`
 	Image    string `json:"docker_image"`
 	Hostname string `json:"docker_hostname"`
-        LogId string `json:"logid"`
-        Type string `json:"type"`
+	LogId    string `json:"logid"`
+	Type     string `json:"type"`
+	TaskId   string `json:"taskId"`
 }
