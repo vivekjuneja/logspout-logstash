@@ -7,6 +7,8 @@ import (
 	"log"
 	"net"
 	"strings"
+	"github.com/fsouza/go-dockerclient"
+	"github.com/gliderlabs/logspout/router"
 )
 
 func init() {
@@ -15,8 +17,9 @@ func init() {
 
 // LogstashAdapter is an adapter that streams UDP JSON to Logstash.
 type LogstashAdapter struct {
-	conn  net.Conn
-	route *router.Route
+	conn          net.Conn
+	route         *router.Route
+	containerTags map[string][]string
 }
 
 // NewLogstashAdapter creates a LogstashAdapter with UDP as the default transport.
@@ -32,16 +35,36 @@ func NewLogstashAdapter(route *router.Route) (router.LogAdapter, error) {
 	}
 
 	return &LogstashAdapter{
-		route: route,
-		conn:  conn,
+		route:         route,
+		conn:          conn,
+		containerTags: make(map[string][]string),
 	}, nil
+}
+
+// Get container tags configured with the environment variable LOGSTASH_TAGS
+func GetContainerTags(c *docker.Container, a *LogstashAdapter) []string {
+	if tags, ok := a.containerTags[c.ID]; ok {
+		return tags
+	}
+
+	var tags = []string{}
+	for _, e := range c.Config.Env {
+		if strings.HasPrefix(e, "LOGSTASH_TAGS=") {
+			tags = strings.Split(strings.TrimPrefix(e, "LOGSTASH_TAGS="), ",")
+			break
+		}
+	}
+
+	a.containerTags[c.ID] = tags
+	return tags
 }
 
 // Stream implements the router.LogAdapter interface.
 func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
+
 	for m := range logstream {
-		msg := LogstashMessage{
-			Message:  m.Data,
+
+		dockerInfo := DockerInfo{
 			Name:     m.Container.Name,
 			ID:       m.Container.ID,
 			Image:    m.Container.Config.Image,
@@ -66,13 +89,54 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 		if err != nil {
 			log.Println("logstash:", err)
 			continue
+		tags := GetContainerTags(m.Container, a)
+
+		var js []byte
+		var data map[string]interface{}
+
+		// Parse JSON-encoded m.Data
+		if err := json.Unmarshal([]byte(m.Data), &data); err != nil {
+			// The message is not in JSON, make a new JSON message.
+			msg := LogstashMessage{
+				Message: m.Data,
+				Docker:  dockerInfo,
+				Stream:  m.Source,
+				Tags:    tags,
+			}
+
+			if js, err = json.Marshal(msg); err != nil {
+				// Log error message and continue parsing next line, if marshalling fails
+				log.Println("logstash: could not marshal JSON:", err)
+				continue
+			}
+		} else {
+			// The message is already in JSON, add the docker specific fields.
+			data["docker"] = dockerInfo
+			data["tags"] = tags
+			data["stream"] = m.Source
+			// Return the JSON encoding
+			if js, err = json.Marshal(data); err != nil {
+				// Log error message and continue parsing next line, if marshalling fails
+				log.Println("logstash: could not marshal JSON:", err)
+				continue
+			}
 		}
-		_, err = a.conn.Write(js)
-		if err != nil {
-			log.Println("logstash:", err)
-			continue
+
+		// To work with tls and tcp transports via json_lines codec
+		js = append(js, byte('\n'))
+
+		if _, err := a.conn.Write(js); err != nil {
+			// There is no retry option implemented yet
+			log.Fatal("logstash: could not write:", err)
 		}
 	}
+}
+
+type DockerInfo struct {
+	Name     string `json:"name"`
+	ID       string `json:"id"`
+	Image    string `json:"image"`
+	Hostname string `json:"hostname"`
 }
 
 // LogstashMessage is a simple JSON input to Logstash.
@@ -85,4 +149,8 @@ type LogstashMessage struct {
 	LogId    string `json:"logid"`
 	Type     string `json:"type"`
 	TaskId   string `json:"taskId"`
+	Message string     `json:"message"`
+	Stream  string     `json:"stream"`
+	Docker  DockerInfo `json:"docker"`
+	Tags    []string   `json:"tags"`
 }
