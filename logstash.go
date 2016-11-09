@@ -3,11 +3,11 @@ package logstash
 import (
 	"encoding/json"
 	"errors"
+	"github.com/gliderlabs/logspout/router"
 	"log"
 	"net"
 	"strings"
 	"github.com/fsouza/go-dockerclient"
-	"github.com/gliderlabs/logspout/router"
 )
 
 func init() {
@@ -16,8 +16,8 @@ func init() {
 
 // LogstashAdapter is an adapter that streams UDP JSON to Logstash.
 type LogstashAdapter struct {
-	conn          net.Conn
-	route         *router.Route
+	conn  net.Conn
+	route *router.Route
 	containerTags map[string][]string
 }
 
@@ -34,18 +34,18 @@ func NewLogstashAdapter(route *router.Route) (router.LogAdapter, error) {
 	}
 
 	return &LogstashAdapter{
-		route:         route,
-		conn:          conn,
+		route: route,
+		conn:  conn,
 		containerTags: make(map[string][]string),
 	}, nil
 }
 
-// Get container tags configured with the environment variable LOGSTASH_TAGS
+
+	// Get container tags configured with the environment variable LOGSTASH_TAGS
 func GetContainerTags(c *docker.Container, a *LogstashAdapter) []string {
 	if tags, ok := a.containerTags[c.ID]; ok {
 		return tags
 	}
-
 	var tags = []string{}
 	for _, e := range c.Config.Env {
 		if strings.HasPrefix(e, "LOGSTASH_TAGS=") {
@@ -53,14 +53,13 @@ func GetContainerTags(c *docker.Container, a *LogstashAdapter) []string {
 			break
 		}
 	}
-
 	a.containerTags[c.ID] = tags
 	return tags
 }
 
+
 // Stream implements the router.LogAdapter interface.
 func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
-
 	for m := range logstream {
 
 		dockerInfo := DockerInfo{
@@ -68,26 +67,8 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 			ID:       m.Container.ID,
 			Image:    m.Container.Config.Image,
 			Hostname: m.Container.Config.Hostname,
-			LogId:    "UNKNOWN",
 		}
 
-		for _, kv := range m.Container.Config.Env {
-			kvp := strings.SplitN(kv, "=", 2)
-
-			if kvp[0] == "LOGID" {
-				msg.LogId = kvp[1]
-			} else if kvp[0] == "TYPE" {
-				msg.Type = kvp[1]
-			} else if kvp[0] == "MESOS_TASK_ID" {
-				msg.TaskId = kvp[1]
-			}
-
-		}
-
-		js, err := json.Marshal(msg)
-		if err != nil {
-			log.Println("logstash:", err)
-			continue
 		tags := GetContainerTags(m.Container, a)
 
 		var js []byte
@@ -101,7 +82,25 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 				Docker:  dockerInfo,
 				Stream:  m.Source,
 				Tags:    tags,
+				Name:     m.Container.Name,
+				ID:       m.Container.ID,
+				Image:    m.Container.Config.Image,
+				Hostname: m.Container.Config.Hostname,
+				LogId:    "UNKNOWN",
 			}
+
+			for _, kv := range m.Container.Config.Env {
+				kvp := strings.SplitN(kv, "=", 2)
+
+				if kvp[0] == "LOGID" {
+					msg.LogId = kvp[1]
+				} else if kvp[0] == "TYPE" {
+					msg.Type = kvp[1]
+				} else if kvp[0] == "MESOS_TASK_ID" {
+					msg.TaskId = kvp[1]
+				}
+
+			}	
 
 			if js, err = json.Marshal(msg); err != nil {
 				// Log error message and continue parsing next line, if marshalling fails
@@ -109,10 +108,44 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 				continue
 			}
 		} else {
+
+			msg := LogstashMessage{
+				Message: m.Data,
+				Docker:  dockerInfo,
+				Stream:  m.Source,
+				Tags:    tags,
+				Name:     m.Container.Name,
+				ID:       m.Container.ID,
+				Image:    m.Container.Config.Image,
+				Hostname: m.Container.Config.Hostname,
+				LogId:    "UNKNOWN",
+			}
+			
+			for _, kv := range m.Container.Config.Env {
+				kvp := strings.SplitN(kv, "=", 2)
+
+				if kvp[0] == "LOGID" {
+					msg.LogId = kvp[1]
+				} else if kvp[0] == "TYPE" {
+					msg.Type = kvp[1]
+				} else if kvp[0] == "MESOS_TASK_ID" {
+					msg.TaskId = kvp[1]
+				}
+
+			}	
+
 			// The message is already in JSON, add the docker specific fields.
 			data["docker"] = dockerInfo
 			data["tags"] = tags
 			data["stream"] = m.Source
+			data["docker_name"] = m.Container.Name
+			data["docker_id"] = m.Container.ID
+			data["docker_hostname"] = m.Container.Config.Hostname
+			data["docker_image"] = m.Container.Config.Image
+			data["logid"] = msg.LogId
+			data["type"] = msg.Type
+			data["taskId"] = msg.TaskId
+
 			// Return the JSON encoding
 			if js, err = json.Marshal(data); err != nil {
 				// Log error message and continue parsing next line, if marshalling fails
@@ -128,8 +161,12 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 			// There is no retry option implemented yet
 			log.Fatal("logstash: could not write:", err)
 		}
+
+
+		
 	}
 }
+
 
 type DockerInfo struct {
 	Name     string `json:"name"`
@@ -141,6 +178,9 @@ type DockerInfo struct {
 // LogstashMessage is a simple JSON input to Logstash.
 type LogstashMessage struct {
 	Message  string `json:"message"`
+	Stream  string     `json:"stream"`
+	Docker  DockerInfo `json:"docker"`
+	Tags    []string   `json:"tags"`
 	Name     string `json:"docker_name"`
 	ID       string `json:"docker_id"`
 	Image    string `json:"docker_image"`
@@ -148,8 +188,4 @@ type LogstashMessage struct {
 	LogId    string `json:"logid"`
 	Type     string `json:"type"`
 	TaskId   string `json:"taskId"`
-	Message string     `json:"message"`
-	Stream  string     `json:"stream"`
-	Docker  DockerInfo `json:"docker"`
-	Tags    []string   `json:"tags"`
 }
