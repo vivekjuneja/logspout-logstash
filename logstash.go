@@ -3,7 +3,6 @@ package logstash
 import (
 	"encoding/json"
 	"errors"
-	"github.com/gliderlabs/logspout/router"
 	"log"
 	"net"
 	"strings"
