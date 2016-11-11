@@ -8,7 +8,10 @@ import (
 	"net"
 	"strings"
 	"github.com/fsouza/go-dockerclient"
+	"strconv"
 )
+
+var counter = 0
 
 func init() {
 	router.AdapterFactories.Register(NewLogstashAdapter, "logstash")
@@ -94,6 +97,10 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 
 				if kvp[0] == "LOGID" {
 					msg.LogId = kvp[1]
+					counter = counter + 1
+					log.Println("Value : ", counter)
+					msg.LogSequenceId = strconv.Itoa(counter)
+
 				} else if kvp[0] == "TYPE" {
 					msg.Type = kvp[1]
 				} else if kvp[0] == "MESOS_TASK_ID" {
@@ -120,12 +127,15 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 				Hostname: m.Container.Config.Hostname,
 				LogId:    "UNKNOWN",
 			}
-			
+
 			for _, kv := range m.Container.Config.Env {
 				kvp := strings.SplitN(kv, "=", 2)
 
 				if kvp[0] == "LOGID" {
 					msg.LogId = kvp[1]
+					counter = counter + 1
+					log.Println("Value : ", counter)
+					msg.LogSequenceId = strconv.Itoa(counter)
 				} else if kvp[0] == "TYPE" {
 					msg.Type = kvp[1]
 				} else if kvp[0] == "MESOS_TASK_ID" {
@@ -186,6 +196,7 @@ type LogstashMessage struct {
 	Image    string `json:"docker_image"`
 	Hostname string `json:"docker_hostname"`
 	LogId    string `json:"logid"`
+	LogSequenceId string `json:"sequence"`
 	Type     string `json:"type"`
 	TaskId   string `json:"taskId"`
 }
