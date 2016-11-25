@@ -98,7 +98,7 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 				if kvp[0] == "LOGID" {
 					msg.LogId = kvp[1]
 					counter = counter + 1
-					log.Println("Value : ", counter)
+					//log.Println("Value : ", counter)
 					//msg.LogSequenceId = strconv.Itoa(counter)
 					msg.LogSequenceId = counter
 
@@ -135,7 +135,7 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 				if kvp[0] == "LOGID" {
 					msg.LogId = kvp[1]
 					counter = counter + 1
-					log.Println("Value : ", counter)
+					//log.Println("Value : ", counter)
 					//msg.LogSequenceId = strconv.Itoa(counter)
 					msg.LogSequenceId = counter
 				} else if kvp[0] == "TYPE" {
